@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本の47都道府県クイズ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Kosugi Maru', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f8ff;
+            color: #333;
+        }
+        h1 {
+            color: #ff6b6b;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        #map {
+            width: 100%;
+            max-width: 800px;
+            height: 500px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        #quiz-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 100%;
+        }
+        #question {
+            color: #4ecdc4;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #ffd93d;
+            border: none;
+            color: #333;
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Kosugi Maru', sans-serif;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #ffc107;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        #info {
+            margin-top: 20px;
+            text-align: left;
+            background-color: #e9f7ef;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        #info h3 {
+            color: #ff6b6b;
+            margin-top: 0;
+        }
+        .highlight {
+            background-color: #fff176;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🗾 日本の47都道府県クイズ 🗾</h1>
+    <div id="map"></div>
+    <div id="quiz-container">
+        <h2 id="question"></h2>
+        <button id="check-answer" style="display:none;">回答を確認</button>
+        <button id="next" onclick="nextQuestion()" style="display: none;">次の問題</button>
+        <div id="info"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script>
+        let currentIndex = 0;
+        let score = 0;
+        let map;
+        let geojson;
+        let selectedPrefecture = null;
+
+        const prefectures = [
+    { name: "北海道", specialties: ["ジンギスカン", "札幌ラーメン", "いくら"], attraction: "札幌時計台", worldHeritage: "知床", historicalEvent: "1869年に開拓使が設置" },
+    { name: "青森県", specialties: ["りんご", "大間まぐろ", "十和田バラ焼き"], attraction: "青函連絡船メモリアルシップ八甲田丸", worldHeritage: "白神山地", historicalEvent: "1871年に青森県が設置" },
+    { name: "岩手県", specialties: ["わんこそば", "南部せんべい", "前沢牛"], attraction: "中尊寺金色堂", worldHeritage: "平泉", historicalEvent: "1876年に岩手県が成立" },
+    { name: "宮城県", specialties: ["牛タン", "ずんだ餅", "笹かまぼこ"], attraction: "松島", worldHeritage: "なし", historicalEvent: "1871年に宮城県が設置" },
+    { name: "秋田県", specialties: ["きりたんぽ", "稲庭うどん", "しょっつる"], attraction: "角館", worldHeritage: "白神山地", historicalEvent: "1871年に秋田県が設置" },
+    { name: "山形県", specialties: ["さくらんぼ", "芋煮", "米沢牛"], attraction: "山寺", worldHeritage: "なし", historicalEvent: "1876年に山形県が成立" },
+    { name: "福島県", specialties: ["桃", "喜多方ラーメン", "会津塗"], attraction: "鶴ヶ城", worldHeritage: "なし", historicalEvent: "1876年に福島県が成立" },
+    { name: "茨城県", specialties: ["納豆", "あんこう", "メロン"], attraction: "偕楽園", worldHeritage: "なし", historicalEvent: "1875年に茨城県が成立" },
+    { name: "栃木県", specialties: ["いちご", "宇都宮餃子", "日光ゆば"], attraction: "日光東照宮", worldHeritage: "日光の社寺", historicalEvent: "1873年に栃木県が成立" },
+    { name: "群馬県", specialties: ["こんにゃく", "焼まんじゅう", "上州牛"], attraction: "草津温泉", worldHeritage: "富岡製糸場と絹産業遺産群", historicalEvent: "1876年に群馬県が成立" },
+    { name: "埼玉県", specialties: ["深谷ねぎ", "草加せんべい", "川越芋"], attraction: "川越蔵造りの町並み", worldHeritage: "なし", historicalEvent: "1871年に埼玉県が設置" },
+    { name: "千葉県", specialties: ["落花生", "ピーナッツバター", "びわ"], attraction: "東京ディズニーリゾート", worldHeritage: "なし", historicalEvent: "1873年に千葉県が成立" },
+    { name: "東京都", specialties: ["築地の寿司", "もんじゃ焼き", "東京ばな奈"], attraction: "東京スカイツリー", worldHeritage: "なし", historicalEvent: "1868年に江戸から東京に改称" },
+    { name: "神奈川県", specialties: ["横浜中華街の中華料理", "シウマイ", "湘南しらす"], attraction: "横浜みなとみらい21", worldHeritage: "なし", historicalEvent: "1876年に神奈川県が成立" },
+    { name: "新潟県", specialties: ["コシヒカリ", "へぎそば", "笹団子"], attraction: "佐渡金山", worldHeritage: "なし", historicalEvent: "1876年に新潟県が成立" },
+    { name: "富山県", specialties: ["ます寿し", "白エビ", "黒部名水ポーク"], attraction: "立山黒部アルペンルート", worldHeritage: "五箇山の合掌造り集落", historicalEvent: "1883年に富山県が成立" },
+    { name: "石川県", specialties: ["加賀野菜", "金沢カレー", "加能ガニ"], attraction: "兼六園", worldHeritage: "なし", historicalEvent: "1871年に石川県が設置" },
+    { name: "福井県", specialties: ["越前がに", "ソースカツ丼", "若狭塗"], attraction: "東尋坊", worldHeritage: "なし", historicalEvent: "1881年に福井県が成立" },
+    { name: "山梨県", specialties: ["ほうとう", "信玄餅", "甲州ワイン"], attraction: "富士五湖", worldHeritage: "富士山", historicalEvent: "1871年に山梨県が設置" },
+    { name: "長野県", specialties: ["信州そば", "りんご", "野沢菜"], attraction: "松本城", worldHeritage: "なし", historicalEvent: "1871年に長野県が設置" },
+    { name: "岐阜県", specialties: ["飛騨牛", "朴葉みそ", "柿"], attraction: "白川郷", worldHeritage: "白川郷・五箇山の合掌造り集落", historicalEvent: "1871年に岐阜県が設置" },
+    { name: "静岡県", specialties: ["静岡茶", "うなぎパイ", "桜えび"], attraction: "富士山", worldHeritage: "富士山", historicalEvent: "1876年に静岡県が成立" },
+    { name: "愛知県", specialties: ["ひつまぶし", "味噌カツ", "名古屋コーチン"], attraction: "名古屋城", worldHeritage: "なし", historicalEvent: "1871年に愛知県が設置" },
+    { name: "三重県", specialties: ["松阪牛", "伊勢うどん", "あおさのり"], attraction: "伊勢神宮", worldHeritage: "熊野古道", historicalEvent: "1876年に三重県が成立" },
+    { name: "滋賀県", specialties: ["近江牛", "鮒寿司", "近江茶"], attraction: "彦根城", worldHeritage: "なし", historicalEvent: "1872年に滋賀県が成立" },
+    { name: "京都府", specialties: ["八つ橋", "湯葉", "抹茶"], attraction: "金閣寺", worldHeritage: "古都京都の文化財", historicalEvent: "794年に平安京遷都" },
+    { name: "大阪府", specialties: ["たこ焼き", "お好み焼き", "串カツ"], attraction: "大阪城", worldHeritage: "なし", historicalEvent: "1868年に大阪府が設置" },
+    { name: "兵庫県", specialties: ["神戸牛", "明石焼き", "播州そうめん"], attraction: "姫路城", worldHeritage: "姫路城", historicalEvent: "1871年に兵庫県が設置" },
+    { name: "奈良県", specialties: ["奈良漬け", "柿の葉寿司", "三輪そうめん"], attraction: "東大寺", worldHeritage: "古都奈良の文化財", historicalEvent: "710年に平城京遷都" },
+    { name: "和歌山県", specialties: ["梅干し", "みかん", "クエ鍋"], attraction: "高野山", worldHeritage: "紀伊山地の霊場と参詣道", historicalEvent: "1871年に和歌山県が設置" },
+    { name: "鳥取県", specialties: ["松葉がに", "二十世紀梨", "砂丘らっきょう"], attraction: "鳥取砂丘", worldHeritage: "なし", historicalEvent: "1881年に鳥取県が成立" },
+    { name: "島根県", specialties: ["出雲そば", "宍道湖しじみ", "のどぐろ"], attraction: "出雲大社", worldHeritage: "石見銀山遺跡とその文化的景観", historicalEvent: "1871年に島根県が設置" },
+    { name: "岡山県", specialties: ["桃", "マスカット", "ままかり"], attraction: "倉敷美観地区", worldHeritage: "なし", historicalEvent: "1871年に岡山県が設置" },
+    { name: "広島県", specialties: ["お好み焼き", "もみじ饅頭", "牡蠣"], attraction: "厳島神社", worldHeritage: "原爆ドーム", historicalEvent: "1871年に広島県が設置" },
+    { name: "山口県", specialties: ["ふぐ", "瓦そば", "岩国れんこん"], attraction: "秋吉台", worldHeritage: "なし", historicalEvent: "1871年に山口県が設置" },
+    { name: "徳島県", specialties: ["すだち", "鳴門わかめ", "鳴門金時"], attraction: "鳴門の渦潮", worldHeritage: "なし", historicalEvent: "1880年に徳島県が成立" },
+    { name: "香川県", specialties: ["讃岐うどん", "オリーブ", "骨付鳥"], attraction: "栗林公園", worldHeritage: "なし", historicalEvent: "1888年に香川県が成立" },
+    { name: "愛媛県", specialties: ["みかん", "鯛めし", "じゃこ天"], attraction: "道後温泉", worldHeritage: "なし", historicalEvent: "1876年に愛媛県が成立" },
+    { name: "高知県", specialties: ["カツオのたたき", "土佐酒", "ゆず"], attraction: "高知城", worldHeritage: "なし", historicalEvent: "1876年に高知県が成立" },
+    { name: "福岡県", specialties: ["明太子", "博多ラーメン", "辛子明太子"], attraction: "太宰府天満宮", worldHeritage: "なし", historicalEvent: "1871年に福岡県が設置" },
+    { name: "佐賀県", specialties: ["佐賀牛", "呼子イカ", "佐賀のり"], attraction: "吉野ヶ里遺跡", worldHeritage: "なし", historicalEvent: "1883年に佐賀県が成立" },
+    { name: "長崎県", specialties: ["カステラ", "ちゃんぽん", "角煮まんじゅう"], attraction: "グラバー園", worldHeritage: "長崎と天草地方の潜伏キリシタン関連遺産", historicalEvent: "1871年に長崎県が設置" },
+    { name: "熊本県", specialties: ["馬刺し", "辛子れんこん", "阿蘇の赤牛"], attraction: "熊本城", worldHeritage: "なし", historicalEvent: "1871年に熊本県が設置" },
+    { name: "大分県", specialties: ["とり天", "関さば", "城下かれい"], attraction: "別府温泉", worldHeritage: "なし", historicalEvent: "1876年に大分県が成立" },
+    { name: "宮崎県", specialties: ["チキン南蛮", "冷や汁", "日向夏"], attraction: "サンメッセ日南", worldHeritage: "なし", historicalEvent: "1883年に宮崎県が成立" },
+    { name: "鹿児島県", specialties: ["黒豚", "さつまあげ", "焼酎"], attraction: "桜島", worldHeritage: "屋久島", historicalEvent: "1871年に鹿児島県が設置" },
+    { name: "沖縄県", specialties: ["ゴーヤーチャンプルー", "海ぶどう", "サーターアンダギー"], attraction: "首里城", worldHeritage: "琉球王国のグスク及び関連遺産群", historicalEvent: "1972年に日本復帰" }
+];
+
+        async function initMap() {
+            map = L.map('map').setView([37.0, 138.0], 5);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            try {
+                const response = await fetch('https://raw.githubusercontent.com/dataofjapan/land/master/japan.geojson');
+                const data = await response.json();
+
+                geojson = L.geoJSON(data, {
+                    style: function(feature) {
+                        return {
+                            fillColor: '#f0f0f0',
+                            weight: 1,
+                            opacity: 1,
+                            color: 'white',
+                            fillOpacity: 0.7
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        layer.on('click', function() {
+                            if (selectedPrefecture) {
+                                geojson.resetStyle(selectedPrefecture);
+                            }
+                            layer.setStyle({
+                                fillColor: '#ff9999'
+                            });
+                            selectedPrefecture = layer;
+                            document.getElementById('check-answer').style.display = 'inline-block';
+                        });
+                    }
+                }).addTo(map);
+            } catch (error) {
+                console.error("Error loading GeoJSON data:", error);
+            }
+        }
+
+        function updateQuestion() {
+            document.getElementById('question').textContent = `第${currentIndex + 1}問: ${prefectures[currentIndex].name}はどこ？地図上でクリックしてください。`;
+            document.getElementById('info').innerHTML = '';
+            document.getElementById('check-answer').style.display = 'none';
+            document.getElementById('next').style.display = 'none';
+            
+            if (selectedPrefecture) {
+                geojson.resetStyle(selectedPrefecture);
+                selectedPrefecture = null;
+            }
+        }
+
+        function checkAnswer() {
+            const info = document.getElementById('info');
+            
+            if (!selectedPrefecture) {
+                info.innerHTML = '<h3>都道府県を選択してください</h3>';
+                return;
+            }
+
+            const selectedName = selectedPrefecture.feature.properties.nam_ja;
+            const correctName = prefectures[currentIndex].name;
+            
+            const normalizePrefix = (name) => name.replace(/(都|府|県)$/, '');
+            
+            const isCorrect = normalizePrefix(selectedName) === normalizePrefix(correctName);
+            
+            if (isCorrect) {
+                score++;
+                info.innerHTML = '<h3>正解！</h3>';
+            } else {
+                info.innerHTML = '<h3>不正解</h3>';
+                geojson.eachLayer(function(layer) {
+                    if (normalizePrefix(layer.feature.properties.nam_ja) === normalizePrefix(correctName)) {
+                        layer.setStyle({
+                            fillColor: '#66ff66'
+                        });
+                    }
+                });
+            }
+            
+            info.innerHTML += `
+                <p><span class="highlight">正解: ${prefectures[currentIndex].name}</span></p>
+                <p>名産品: ${prefectures[currentIndex].specialties.join(', ')}</p>
+                <p>観光名所: ${prefectures[currentIndex].attraction}</p>
+                <p>世界遺産: ${prefectures[currentIndex].worldHeritage}</p>
+                <p>歴史的出来事: ${prefectures[currentIndex].historicalEvent}</p>
+            `;
+            document.getElementById('next').style.display = 'inline-block';
+        }
+
+        function nextQuestion() {
+            currentIndex++;
+            if (currentIndex < prefectures.length) {
+                updateQuestion();
+            } else {
+                document.getElementById('quiz-container').innerHTML = `<h2>クイズ終了！</h2><p>あなたの最終スコアは ${score} / ${prefectures.length} です。</p>`;
+            }
+        }
+
+        document.getElementById('check-answer').addEventListener('click', checkAnswer);
+
+        initMap().then(updateQuestion);
+    </script>
+</body>
+</html>
